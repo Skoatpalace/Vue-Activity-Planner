@@ -3,68 +3,35 @@
     <nav class="navbar is-white topNav">
       <div class="container">
         <div class="navbar-brand">
-          <h1>Activity Planner</h1>
+          <!-- <h1>{{ watchedAppName }}</h1> -->
+          <h1>{{ fullAppName }}</h1>
         </div>
       </div>
     </nav>
-    <nav class="navbar is-white">
-      <div class="container">
-        <div class="navbar-menu">
-          <div class="navbar-start">
-            <a class="navbar-item is-active" href="#">Newest</a>
-            <a class="navbar-item" href="#">In Progress</a>
-            <a class="navbar-item" href="#">Finished</a>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <TheNavbar @filterSelected="setFilter" />
     <section class="container">
       <div class="columns">
         <div class="column is-3">
-          <a
-            v-if="!isFormDisplayed"
-            @click="toggleFormDisplay"
-            class="button is-primary is-block is-alt is-large"
-            href="#"
-          >New Activity</a>
-          <div v-if="isFormDisplayed" class="create-form">
-            <h2>Create Activity</h2>
-            <form>
-              <div class="field">
-                <label class="label">Title</label>
-                <div class="control">
-                  <input
-                    v-model="newActivity.title"
-                    class="input"
-                    type="text"
-                    placeholder="Read a Book"
-                  />
-                </div>
-              </div>
-              <div class="field">
-                <label class="label">Notes</label>
-                <div class="control">
-                  <textarea
-                    v-model="newActivity.notes"
-                    class="textarea"
-                    placeholder="Write some notes here"
-                  ></textarea>
-                </div>
-              </div>
-              <div class="field is-grouped">
-                <div class="control">
-                  <button @click="createActivity" class="button is-link">Create Activity</button>
-                </div>
-                <div class="control">
-                  <button class="button is-text" @click="toggleFormDisplay">Cancel</button>
-                </div>
-              </div>
-            </form>
-          </div>
+          <ActivityCreate :categories="categories" />
         </div>
         <div class="column is-9">
-          <div class="box content">
-            <ActivityItem v-for="activity in activities" :activity="activity" :key="activity.id" />
+          <div class="box content" :class="{fetching: isFetching, 'has-error': error}">
+            <div v-if="error">{{error}}</div>
+            <div v-else>
+              <div v-if="isFetching">Loading ...</div>
+              <div v-if="isDataLoaded">
+                <ActivityItem
+                  v-for="activity in filteredActivities"
+                  :activity="activity"
+                  :categories="categories"
+                  :key="activity.id"
+                />
+              </div>
+            </div>
+            <div v-if="!isFetching">
+              <div class="activity-length">Currently {{ activityLength }} activities</div>
+              <div class="activity-motivation">{{activityMotivation}}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -73,77 +40,105 @@
 </template>
 
 <script>
-import ActivityItem from "@/components/ActivityItem";
-import { fetchActivities } from "@/api";
+import store from '@/store'
+import ActivityItem from '@/components/ActivityItem'
+import ActivityCreate from '@/components/ActivityCreate'
+import TheNavbar from '@/components/TheNavbar'
+// import fakeApi from '@/lib/fakeApi'
+// import { fetchActivities, fetchCategories, fetchUser, deleteActivityAPI } from '@/api'
 
 export default {
-  name: "app",
+  name: 'app',
   components: {
-    ActivityItem
+    ActivityItem,
+    ActivityCreate,
+    TheNavbar
   },
-  data() {
+  data () {
+    const {
+      state: { activities, categories }
+    } = store
     return {
-      isFormDisplayed: false,
-      message: "Hello Vue!",
-      titleMessage: "Title Message Vue!!!!!",
-      isTextDisplayed: true,
-      newActivity: {
-        title: "",
-        notes: ""
-      },
+      creator: 'Richard Fages',
+      appName: 'Activity Planner',
+      isFetching: false,
+      error: null,
+      watchedAppName: 'Activity Planner by Richard Fages',
       itemsNumbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       items: {
-        1: { name: "Jhon" },
-        2: { name: "Philip" },
-        3: { name: "Carla" }
+        1: { name: 'Jhon' },
+        2: { name: 'Philip' },
+        3: { name: 'Carla' }
       },
-      user: {
-        name: "Richard Fages    ",
-        id: "-Aj34jknvncx98812"
-      },
-      activities: {},
-      categories: {
-        "1546969049": { text: "books" },
-        "1546969225": { text: "movies" }
+      user: {},
+      activities,
+      categories,
+      filter: 'all'
+    }
+  },
+  computed: {
+    filteredActivities () {
+      let condition
+      if (this.filter === 'all') {
+        return this.activities
       }
-    };
+      if (this.filter === 'inprogress') {
+        condition = (value) => value > 0 && value < 100
+      } else if (this.filter === 'finished') {
+        condition = (value) => value === 100
+      } else {
+        condition = (value) => value === 0
+      }
+      return Object.values(this.activities)
+        .filter(activity => condition(activity.progress))
+    },
+    fullAppName () {
+      return this.appName + ' by ' + this.creator
+    },
+    activityLength () {
+      return Object.keys(this.activities).length
+    },
+    activityMotivation () {
+      if (this.activityLength && this.activityLength < 5) {
+        return 'Nice to see some activities 🤩'
+      } else if (this.activityLength >= 5) {
+        return 'So many activities ! Good job! 😎'
+      } else {
+        return 'No activities, so sad 🤧'
+      }
+    },
+    activitiesLength () {
+      return Object.keys(this.activities).length
+    },
+    categoriesLength () {
+      return Object.keys(this.categories).length
+    },
+    isDataLoaded () {
+      return this.activitiesLength && this.categoriesLength
+    }
   },
-  beforeCreate() {
-    console.log("beforeCreate called !");
-  },
-  created() {
-    this.activities = fetchActivities();
-  },
-  beforeMount() {
-    console.log("beforeMount called !");
-  },
-  mounted() {
-    console.log("mounted called !");
-  },
-  beforeUpdate() {
-    console.log("beforeUpdate called !");
-  },
-  updated() {
-    console.log("updated called !");
-  },
-  beforeDestroy() {
-    console.log("beforeDestroy called !");
-  },
-  destroyed() {
-    console.log("destroyed called !");
+  created () {
+    // ONLY RUN ONE TO POPULATE LOCAL STORAGE !!!!!
+    // fakeApi.fillDB()
+    this.isFetching = true
+    store
+      .fetchActivities()
+      .then(activities => {
+        this.isFetching = false
+      })
+      .catch(err => {
+        this.error = err
+        this.isFetching = false
+      })
+    this.user = store.fetchUser()
+    store.fetchCategories().then(categories => {})
   },
   methods: {
-    toggleTextDisplay() {
-      this.isTextDisplayed = !this.isTextDisplayed;
-    },
-    toggleFormDisplay() {
-      this.isFormDisplayed = !this.isFormDisplayed;
-    },
-    createActivity() {
-      console.log(this.newActivity);
+    setFilter (filterOption) {
+      this.filter = filterOption
     }
   }
-};
+}
 </script>
 
 <style>
@@ -162,6 +157,21 @@ body {
 footer {
   background-color: #f2f6fa !important;
 }
+.fetching {
+  border: 2px solid orange;
+}
+
+.has-error {
+  border: 2px solid red;
+}
+.activity-motivation {
+  float: right;
+}
+
+.activity-length {
+  display: inline-block;
+}
+
 .example-wrapper {
   margin-left: 30px;
 }
